@@ -1,6 +1,6 @@
 # Action Station
 
-[<img src="https://github.com/Kappa63/gnome-shell-extension-ActionStation/raw/master/assets/get-it-on-ego.png" height="100">](https://extensions.gnome.org/extension/8343/server-communicator)
+[<img src="https://github.com/Kappa63/gnome-shell-extension-ActionStation/raw/master/assets/get-it-on-ego.png" height="100">](https://extensions.gnome.org/extension/9466/action-station)
 
 **Action Station** is a productivity hub for GNOME Shell. It provides a unified menu to trigger API requests, mount remote file systems, and execute local shell commands directly from the top bar.
 
@@ -26,7 +26,7 @@
     git clone [https://github.com/Kappa63/gnome-shell-extension-ActionStation.git](https://github.com/Kappa63/gnome-shell-extension-ActionStation.git) ~/.local/share/gnome-shell/extensions/action-station@kappa63.github.com
     ```
 
-2.  **Compile the settings schema** (Required for the extension to recognize settings keys):
+2.  **Compile the settings schema** (If not already done. It's required for the extension to recognize settings keys):
     ```bash
     glib-compile-schemas ~/.local/share/gnome-shell/extensions/action-station@kappa63.github.com/schemas/
     ```
