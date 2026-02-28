@@ -1,4 +1,4 @@
-import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
+import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
@@ -51,7 +51,7 @@ const ActionStation = GObject.registerClass({
         }
         super.destroy();
     }
-    
+
     _init(ext) {
         super._init(0.0, "ActionStation");
         this._ext = ext
@@ -59,7 +59,7 @@ const ActionStation = GObject.registerClass({
         this._fmModel = new FileMgmt(this._ext.settings);
         this._cmdModel = new Commands(this._ext.settings);
         this._orderModel = new Order(this._ext.settings);
-        
+
         this.add_child(new St.Icon({
             icon_name: "network-server-symbolic",
             style_class: "system-status-icon"
@@ -85,7 +85,7 @@ const ActionStation = GObject.registerClass({
             style_class: "status-area-scroll"
         });
 
-        const vbox = new St.BoxLayout({ 
+        const vbox = new St.BoxLayout({
             vertical: true,
             style_class: "status-area-box"
         });
@@ -95,15 +95,15 @@ const ActionStation = GObject.registerClass({
             if (o.type === "API") {
                 let a = this._apiModel.get(o.id);
                 // if (a)
-                    vbox.add_child(this._buildApiPopup(a));
+                vbox.add_child(this._buildApiPopup(a));
             } else if (o.type === "CMD") {
                 let c = this._cmdModel.get(o.id);
                 // if (c)
-                    vbox.add_child(this._buildCmdPopup(c));
-            } else if (o.type === "FILE"){
+                vbox.add_child(this._buildCmdPopup(c));
+            } else if (o.type === "FILE") {
                 let f = this._fmModel.get(o.id)
                 // if (f)
-                    vbox.add_child(this._buildFmPopup(f));
+                vbox.add_child(this._buildFmPopup(f));
             }
         }
 
@@ -132,7 +132,7 @@ const ActionStation = GObject.registerClass({
                     this._ext.clipboard.set_text(St.ClipboardType.CLIPBOARD, response);
                     if (a.popup)
                         this._showJsonModal(a.server, JSON.parse(response))
-                    else 
+                    else
                         Main.notify("Success")
                 } catch (e) {
                     Main.notify(`Error: ${e.message}`);
@@ -159,7 +159,7 @@ const ActionStation = GObject.registerClass({
                     await RemoteFileUtils.openRemoteInFiles(f.protocol, f.user, f.server);
                 } catch (e) {
                     Main.notify(`Error: ${e.message}`);
-                } 
+                }
             })();
         });
 
@@ -182,7 +182,7 @@ const ActionStation = GObject.registerClass({
                     Main.notify("Action Station", `${c.label} completed.`);
                 } catch (e) {
                     Main.notify(`Error (${c.label})`, e.message);
-                } 
+                }
             })();
         });
 
@@ -207,7 +207,7 @@ const ActionStation = GObject.registerClass({
             ellipsize: 0,
             reactive: true,
             selectable: true,
-            x_expand: true, 
+            x_expand: true,
             y_expand: true,
             color: new Cogl.Color({ red: 255, green: 255, blue: 255, alpha: 255 }),
             selected_text_color: new Cogl.Color({ red: 0, green: 0, blue: 0, alpha: 255 })
@@ -223,9 +223,9 @@ const ActionStation = GObject.registerClass({
         });
         scrollView.set_child(vp);
 
-        const messageLayout = new St.BoxLayout({ 
-            vertical: true, 
-            x_expand: true, 
+        const messageLayout = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
             y_expand: true
         });
         messageLayout.add_child(sourceURL);
@@ -233,9 +233,9 @@ const ActionStation = GObject.registerClass({
 
         jsonModal.contentLayout.add_child(messageLayout);
         jsonModal.setButtons([{
-            label: "Close", 
-            action: () => jsonModal.close(), 
-            key: Clutter.KEY_Escape 
+            label: "Close",
+            action: () => jsonModal.close(),
+            key: Clutter.KEY_Escape
         }]);
 
         jsonModal.open();

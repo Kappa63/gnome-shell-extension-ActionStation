@@ -759,7 +759,7 @@ export const ActionPrefsWidget = GObject.registerClass(
                 id: this._currentId,
                 label,
                 type: "CMD",
-                trigger: false
+                trigger: !this._orderModel.get(this._currentId).trigger
             };
 
             this._cmdModel.update(this._currentId, cmdData);
