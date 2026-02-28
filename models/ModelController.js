@@ -10,7 +10,6 @@ export default class ModelController {
             try {
                 return JSON.parse(s);
             } catch (e) {
-                // log(`Failed to parse entry for ${this._key}: ${s}`);
                 return null;
             }
         }).filter(obj => obj !== null);
