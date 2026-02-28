@@ -1,11 +1,13 @@
-import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
+import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as RemoteFileUtils from './Utils/RemoteFileUtils.js';
 import * as HttpCallUtils from './Utils/HttpCallUtils.js';
+import * as ShellUtils from './Utils/ShellUtils.js';
 import FileMgmt from './models/FileMgmt.js';
+import Commands from './models/Commands.js';
 import Order from './models/Order.js';
 import APIs from './models/APIs.js';
 import Clutter from 'gi://Clutter';
@@ -15,11 +17,11 @@ import Soup from 'gi://Soup';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 
-export default class ServerCommunicatorExtension extends Extension {
+export default class ActionStationExtension extends Extension {
     enable() {
         this._soupSession = new Soup.Session();
 
-        this._serverCommunicator = new ServerCommunicator({
+        this._actionStation = new ActionStation({
             settings: this.getSettings(),
             openPreferences: this.openPreferences,
             uuid: this.uuid,
@@ -27,21 +29,21 @@ export default class ServerCommunicatorExtension extends Extension {
             clipboard: St.Clipboard.get_default(),
             extensionDir: this.dir
         });
-        Main.panel.addToStatusArea(this.uuid, this._serverCommunicator);
+        Main.panel.addToStatusArea(this.uuid, this._actionStation);
     }
 
     disable() {
         this._soupSession.abort()
         this._soupSession = null;
 
-        this._serverCommunicator.destroy();
-        this._serverCommunicator = null;
+        this._actionStation.destroy();
+        this._actionStation = null;
     }
 }
 
-const ServerCommunicator = GObject.registerClass({
-    GTypeName: "ServerCommunicator"
-}, class ServerCommunicator extends PanelMenu.Button {
+const ActionStation = GObject.registerClass({
+    GTypeName: "ActionStation"
+}, class ActionStation extends PanelMenu.Button {
     destroy() {
         if (this._orderChanged) {
             this._ext.settings.disconnect(this._orderChanged);
@@ -49,14 +51,15 @@ const ServerCommunicator = GObject.registerClass({
         }
         super.destroy();
     }
-    
+
     _init(ext) {
-        super._init(0.0, "ServerCommunicator");
+        super._init(0.0, "ActionStation");
         this._ext = ext
         this._apiModel = new APIs(this._ext.settings);
         this._fmModel = new FileMgmt(this._ext.settings);
+        this._cmdModel = new Commands(this._ext.settings);
         this._orderModel = new Order(this._ext.settings);
-        
+
         this.add_child(new St.Icon({
             icon_name: "network-server-symbolic",
             style_class: "system-status-icon"
@@ -72,8 +75,9 @@ const ServerCommunicator = GObject.registerClass({
     _buildMenu() {
         this.menu.removeAll();
         this._order = this._orderModel.getAll();
-        this._apis = this._apiModel.getAll();
-        this._fms = this._fmModel.getAll();
+        // this._apis = this._apiModel.getAll();
+        // this._fms = this._fmModel.getAll();
+        // this._cmds = this._cmdModel.getAll();
 
         const labelPopupList = new PopupMenu.PopupBaseMenuItem({ reactive: false, can_focus: false });
         const scrollView = new St.ScrollView({
@@ -81,7 +85,7 @@ const ServerCommunicator = GObject.registerClass({
             style_class: "status-area-scroll"
         });
 
-        const vbox = new St.BoxLayout({ 
+        const vbox = new St.BoxLayout({
             vertical: true,
             style_class: "status-area-box"
         });
@@ -91,11 +95,15 @@ const ServerCommunicator = GObject.registerClass({
             if (o.type === "API") {
                 let a = this._apiModel.get(o.id);
                 // if (a)
-                    vbox.add_child(this._buildApiPopup(a));
-            } else {
+                vbox.add_child(this._buildApiPopup(a));
+            } else if (o.type === "CMD") {
+                let c = this._cmdModel.get(o.id);
+                // if (c)
+                vbox.add_child(this._buildCmdPopup(c));
+            } else if (o.type === "FILE") {
                 let f = this._fmModel.get(o.id)
                 // if (f)
-                    vbox.add_child(this._buildFmPopup(f));
+                vbox.add_child(this._buildFmPopup(f));
             }
         }
 
@@ -124,7 +132,7 @@ const ServerCommunicator = GObject.registerClass({
                     this._ext.clipboard.set_text(St.ClipboardType.CLIPBOARD, response);
                     if (a.popup)
                         this._showJsonModal(a.server, JSON.parse(response))
-                    else 
+                    else
                         Main.notify("Success")
                 } catch (e) {
                     Main.notify(`Error: ${e.message}`);
@@ -147,16 +155,34 @@ const ServerCommunicator = GObject.registerClass({
             (async () => {
                 this.menu.close();
                 try {
-                    // global.display.set_cursor(11);
                     Main.notify("Mounting Server...")
                     await RemoteFileUtils.openRemoteInFiles(f.protocol, f.user, f.server);
                 } catch (e) {
                     Main.notify(`Error: ${e.message}`);
-                    // logError(e);
-                } 
-                // finally {
-                //     global.display.set_cursor(null)
-                // }
+                }
+            })();
+        });
+
+        return item.actor;
+    }
+
+    _buildCmdPopup(c) {
+        const item = new PopupMenu.PopupMenuItem(c.label);
+        item.actor.insert_child_at_index(new St.Icon({
+            icon_name: "utilities-terminal-symbolic",
+            style_class: "popup-menu-icon"
+        }), 0);
+
+        item.connect("activate", () => {
+            (async () => {
+                this.menu.close();
+                try {
+                    Main.notify("Action Station", `Running: ${c.label}`);
+                    await ShellUtils.runCommand(c.command, c.useTerminal, c.workDir, c.preferredTerminal);
+                    Main.notify("Action Station", `${c.label} completed.`);
+                } catch (e) {
+                    Main.notify(`Error (${c.label})`, e.message);
+                }
             })();
         });
 
@@ -181,7 +207,7 @@ const ServerCommunicator = GObject.registerClass({
             ellipsize: 0,
             reactive: true,
             selectable: true,
-            x_expand: true, 
+            x_expand: true,
             y_expand: true,
             color: new Cogl.Color({ red: 255, green: 255, blue: 255, alpha: 255 }),
             selected_text_color: new Cogl.Color({ red: 0, green: 0, blue: 0, alpha: 255 })
@@ -197,9 +223,9 @@ const ServerCommunicator = GObject.registerClass({
         });
         scrollView.set_child(vp);
 
-        const messageLayout = new St.BoxLayout({ 
-            vertical: true, 
-            x_expand: true, 
+        const messageLayout = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
             y_expand: true
         });
         messageLayout.add_child(sourceURL);
@@ -207,13 +233,12 @@ const ServerCommunicator = GObject.registerClass({
 
         jsonModal.contentLayout.add_child(messageLayout);
         jsonModal.setButtons([{
-            label: "Close", 
-            action: () => jsonModal.close(), 
-            key: Clutter.KEY_Escape 
+            label: "Close",
+            action: () => jsonModal.close(),
+            key: Clutter.KEY_Escape
         }]);
 
         jsonModal.open();
     }
-
 
 });

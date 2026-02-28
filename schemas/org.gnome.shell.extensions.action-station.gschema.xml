@@ -1,5 +1,5 @@
 <schemalist>
-  <schema id="org.gnome.shell.extensions.server-communicator" path="/org/gnome/shell/extensions/server-communicator/">
+  <schema id="org.gnome.shell.extensions.action-station" path="/org/gnome/shell/extensions/action-station/">
     <key name="apis" type="as">
       <default>[]</default>
       <summary>API Labels</summary>
@@ -9,6 +9,11 @@
       <default>[]</default>
       <summary>SFTP and FTP for files</summary>
       <description>List of File Mangers configured by the user</description>
+    </key>
+    <key name="commands" type="as">
+      <default>[]</default>
+      <summary>Shell Commands</summary>
+      <description>List of Shell Commands configured by the user</description>
     </key>
     <key name="order" type="as">
       <default>[]</default>

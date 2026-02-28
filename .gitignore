@@ -1,3 +1,4 @@
 *.zip
 old
 *.old.js
+*.js.old

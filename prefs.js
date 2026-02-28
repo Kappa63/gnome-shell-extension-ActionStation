@@ -1,14 +1,14 @@
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
-import { APIPrefsWidget } from './APIPrefsWidget.js';
+import { ActionPrefsWidget } from './ActionPrefsWidget.js';
 import Adw from 'gi://Adw';
 
-export default class ServerCommunicatorPreferences extends ExtensionPreferences {
+export default class ActionStationPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         window.set_default_size(600, 700);
         const page = new Adw.PreferencesPage();
-        const group = new Adw.PreferencesGroup({ title: "Manage Comms" });
+        const group = new Adw.PreferencesGroup({ title: "Manage Actions" });
 
-        const widget = new APIPrefsWidget(this);
+        const widget = new ActionPrefsWidget(this);
         group.add(widget);
 
         page.add(group);
