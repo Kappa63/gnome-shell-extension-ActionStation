@@ -4,7 +4,7 @@
 
 **Action Station** is a productivity hub for GNOME Shell. It provides a unified menu to trigger API requests, mount remote file systems, and execute local shell commands directly from the top bar.
 
-![screenshot](https://github.com/Kappa63/gnome-shell-extension-ActionStation/raw/master/assets/app-screenshot-v3.0.png)
+![screenshot](https://github.com/Kappa63/gnome-shell-extension-ActionStation/raw/master/assets/app-screenshot-rebrand-v1.0.png)
 
 ---
 
