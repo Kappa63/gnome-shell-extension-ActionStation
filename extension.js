@@ -178,10 +178,9 @@ const ActionStation = GObject.registerClass({
                 this.menu.close();
                 try {
                     Main.notify("Action Station", `Running: ${c.label}`);
-                    await ShellUtils.runCommand(c.label, c.command, c.useTerminal, c.workDir);
+                    await ShellUtils.runCommand(c.command, c.useTerminal, c.workDir, c.preferredTerminal);
                     Main.notify("Action Station", `${c.label} completed.`);
                 } catch (e) {
-                    // All errors from ShellUtils end up here
                     Main.notify(`Error (${c.label})`, e.message);
                 } 
             })();
@@ -241,6 +240,5 @@ const ActionStation = GObject.registerClass({
 
         jsonModal.open();
     }
-
 
 });

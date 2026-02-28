@@ -8,795 +8,802 @@ import Gtk from 'gi://Gtk';
 import * as DataIEUtils from './Utils/DataIEUtils.js';
 
 export const ActionPrefsWidget = GObject.registerClass(
-class ActionPrefsWidget extends Gtk.Box {
-    destroy(){
-        if (this._signals.length){
-            this._signals.forEach(({ widg, sig }) => widg.disconnect(sig));
-            this._signals = [];
-        }
-        super.destroy();
-    }
-
-    _init(extension) {
-        super._init({
-            orientation: Gtk.Orientation.HORIZONTAL,
-        });
-        this._extension = extension;
-        this._settings = this._extension.getSettings();
-        this._apiModel = new APIs(this._settings);
-        this._fmModel = new FileMgmt(this._settings);
-        this._cmdModel = new Commands(this._settings);
-        this._orderModel = new Order(this._settings);
-        this._signals = [];
-
-        this.append(this._buildLeftColumn());
-        this.append(this._buildRightColumn())
-    }
-
-    _buildLeftColumn() {
-        const leftCol = new Gtk.Box({
-            margin_start: 10,
-            margin_end: 10,
-            margin_top: 10,
-            margin_bottom: 10,
-            orientation: Gtk.Orientation.VERTICAL,
-            width_request: 240,
-        });
-        leftCol.append(this._buildLabelsList());
-        leftCol.append(this._buildToolbar());
-
-        return leftCol;
-    }
-
-    _buildLabelsList() {
-        this._listStore = new Gtk.ListStore();
-        this._listStore.set_column_types([GObject.TYPE_STRING, GObject.TYPE_STRING, GObject.TYPE_STRING]);
-
-        const labels = this._orderModel.getAll();
-        for (const l of labels) {
-            const iter = this._listStore.append();
-            this._listStore.set_value(iter, 0, l.label);
-            this._listStore.set_value(iter, 1, l.type);
-            this._listStore.set_value(iter, 2, l.id);
+    class ActionPrefsWidget extends Gtk.Box {
+        destroy() {
+            if (this._signals.length) {
+                this._signals.forEach(({ widg, sig }) => widg.disconnect(sig));
+                this._signals = [];
+            }
+            super.destroy();
         }
 
-        this._treeView = new Gtk.TreeView({
-            model: this._listStore,
-            headers_visible: false,
-            reorderable: true,
-            vexpand: true,
-        });
-
-        const lblCol = new Gtk.TreeViewColumn({ title: "Label" });
-        const lblRenderer = new Gtk.CellRendererText();
-        lblCol.pack_start(lblRenderer, true);
-        lblCol.add_attribute(lblRenderer, "text", 0);
-        this._treeView.insert_column(lblCol, 0);
-
-        const typeCol = new Gtk.TreeViewColumn({ title: "Type" });
-        const typeRenderer = new Gtk.CellRendererText();
-        typeRenderer.xalign = 1.0;
-        typeCol.pack_start(typeRenderer, true);
-        typeCol.add_attribute(typeRenderer, "text", 1);
-        this._treeView.insert_column(typeCol, 1);
-
-        this._selection = this._treeView.get_selection();
-        this._selection.connect("changed", this._onSelectionChanged.bind(this));
-
-        return this._treeView;
-    }
-
-    _buildToolbar() {
-        const toolbar = new Gtk.Box({ spacing: 6 });
-
-        const addBtn = new Gtk.MenuButton({ icon_name: "list-add-symbolic" });
-
-        const popover = new Gtk.Popover();
-        addBtn.set_popover(popover);
-
-        const vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4 });
-        popover.set_child(vbox);
-
-        for (let option of ["API", "File Transfer", "Local Command"]) {
-            const item = new Gtk.Button({ label: option });
-            item.connect("clicked", () => {
-                if (option === "API") this._apiAdd();
-                else if (option === "File Transfer") this._fileTransferAdd();
-                else if (option === "Local Command") this._commandAdd();
-                popover.popdown();
+        _init(extension) {
+            super._init({
+                orientation: Gtk.Orientation.HORIZONTAL,
             });
-            vbox.append(item);
+            this._extension = extension;
+            this._settings = this._extension.getSettings();
+            this._apiModel = new APIs(this._settings);
+            this._fmModel = new FileMgmt(this._settings);
+            this._cmdModel = new Commands(this._settings);
+            this._orderModel = new Order(this._settings);
+            this._signals = [];
+
+            this.append(this._buildLeftColumn());
+            this.append(this._buildRightColumn())
         }
-        toolbar.append(addBtn);
 
-        const deleteBtn = new Gtk.Button({ icon_name: "list-remove-symbolic" });
-        this._signals.push({
-            widg: deleteBtn, 
-            sig: deleteBtn.connect("clicked", () => this._lblDelete())
-        });
-        toolbar.append(deleteBtn);
+        _buildLeftColumn() {
+            const leftCol = new Gtk.Box({
+                margin_start: 10,
+                margin_end: 10,
+                margin_top: 10,
+                margin_bottom: 10,
+                orientation: Gtk.Orientation.VERTICAL,
+                width_request: 240,
+            });
+            leftCol.append(this._buildLabelsList());
+            leftCol.append(this._buildToolbar());
 
-        const spacer = new Gtk.Box({ hexpand: true });
-        toolbar.append(spacer);
-
-        const importBtn = new Gtk.Button({ icon_name: "go-bottom-symbolic" });
-        this._signals.push({
-            widg: importBtn, 
-            sig: importBtn.connect("clicked", (btn) => this._getSrcFile(btn))
-        });
-        toolbar.append(importBtn);
-
-        const exportBtn = new Gtk.Button({ icon_name: "go-top-symbolic" });
-        this._signals.push({
-            widg: exportBtn, 
-            sig: exportBtn.connect("clicked", (btn) => this._exportLbls(btn))
-        });
-        toolbar.append(exportBtn);
-
-        return toolbar;
-    }
-
-    _exportLbls(btn) {
-        const labelData = {};
-        labelData.apis = this._apiModel.getAll();
-        labelData.fileMgmt = this._fmModel.getAll();
-        try {
-            DataIEUtils.exportSchema(JSON.stringify(labelData, null, 2));
-            this._showMessage(btn, "Export successful. Saved in Downloads.")
-        } catch (e) {
-            this._showMessage(btn, "Failed to export.")
+            return leftCol;
         }
-    }
 
-    _getSrcFile(btn) {
-        let dialog = new Gtk.FileChooserDialog({
-            title: "Select File",
-            action: Gtk.FileChooserAction.OPEN,
-            transient_for: btn.get_root(),
-            modal: true,
-        });
+        _buildLabelsList() {
+            this._listStore = new Gtk.ListStore();
+            this._listStore.set_column_types([GObject.TYPE_STRING, GObject.TYPE_STRING, GObject.TYPE_STRING]);
 
-        dialog.add_button("_Cancel", Gtk.ResponseType.CANCEL);
-        dialog.add_button("_Open", Gtk.ResponseType.OK);
+            const labels = this._orderModel.getAll();
+            for (const l of labels) {
+                const iter = this._listStore.append();
+                this._listStore.set_value(iter, 0, l.label);
+                this._listStore.set_value(iter, 1, l.type);
+                this._listStore.set_value(iter, 2, l.id);
+            }
 
-        dialog.connect("response", (d, response) => {
-            if (response === Gtk.ResponseType.OK) {
-                let file = dialog.get_file();
-                if (file) {
-                    let path = file.get_path();
-                    if (path) {
-                        this._importLbls(path)
+            this._treeView = new Gtk.TreeView({
+                model: this._listStore,
+                headers_visible: false,
+                reorderable: true,
+                vexpand: true,
+            });
+
+            const lblCol = new Gtk.TreeViewColumn({ title: "Label" });
+            const lblRenderer = new Gtk.CellRendererText();
+            lblCol.pack_start(lblRenderer, true);
+            lblCol.add_attribute(lblRenderer, "text", 0);
+            this._treeView.insert_column(lblCol, 0);
+
+            const typeCol = new Gtk.TreeViewColumn({ title: "Type" });
+            const typeRenderer = new Gtk.CellRendererText();
+            typeRenderer.xalign = 1.0;
+            typeCol.pack_start(typeRenderer, true);
+            typeCol.add_attribute(typeRenderer, "text", 1);
+            this._treeView.insert_column(typeCol, 1);
+
+            this._selection = this._treeView.get_selection();
+            this._selection.connect("changed", this._onSelectionChanged.bind(this));
+
+            return this._treeView;
+        }
+
+        _buildToolbar() {
+            const toolbar = new Gtk.Box({ spacing: 6 });
+
+            const addBtn = new Gtk.MenuButton({ icon_name: "list-add-symbolic" });
+
+            const popover = new Gtk.Popover();
+            addBtn.set_popover(popover);
+
+            const vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4 });
+            popover.set_child(vbox);
+
+            for (let option of ["API", "File Transfer", "Local Command"]) {
+                const item = new Gtk.Button({ label: option });
+                item.connect("clicked", () => {
+                    if (option === "API") this._apiAdd();
+                    else if (option === "File Transfer") this._fileTransferAdd();
+                    else if (option === "Local Command") this._commandAdd();
+                    popover.popdown();
+                });
+                vbox.append(item);
+            }
+            toolbar.append(addBtn);
+
+            const deleteBtn = new Gtk.Button({ icon_name: "list-remove-symbolic" });
+            this._signals.push({
+                widg: deleteBtn,
+                sig: deleteBtn.connect("clicked", () => this._lblDelete())
+            });
+            toolbar.append(deleteBtn);
+
+            const spacer = new Gtk.Box({ hexpand: true });
+            toolbar.append(spacer);
+
+            const importBtn = new Gtk.Button({ icon_name: "go-bottom-symbolic" });
+            this._signals.push({
+                widg: importBtn,
+                sig: importBtn.connect("clicked", (btn) => this._getSrcFile(btn))
+            });
+            toolbar.append(importBtn);
+
+            const exportBtn = new Gtk.Button({ icon_name: "go-top-symbolic" });
+            this._signals.push({
+                widg: exportBtn,
+                sig: exportBtn.connect("clicked", (btn) => this._exportLbls(btn))
+            });
+            toolbar.append(exportBtn);
+
+            return toolbar;
+        }
+
+        _exportLbls(btn) {
+            const labelData = {};
+            labelData.apis = this._apiModel.getAll();
+            labelData.fileMgmt = this._fmModel.getAll();
+            try {
+                DataIEUtils.exportSchema(JSON.stringify(labelData, null, 2));
+                this._showMessage(btn, "Export successful. Saved in Downloads.")
+            } catch (e) {
+                this._showMessage(btn, "Failed to export.")
+            }
+        }
+
+        _getSrcFile(btn) {
+            let dialog = new Gtk.FileChooserDialog({
+                title: "Select File",
+                action: Gtk.FileChooserAction.OPEN,
+                transient_for: btn.get_root(),
+                modal: true,
+            });
+
+            dialog.add_button("_Cancel", Gtk.ResponseType.CANCEL);
+            dialog.add_button("_Open", Gtk.ResponseType.OK);
+
+            dialog.connect("response", (d, response) => {
+                if (response === Gtk.ResponseType.OK) {
+                    let file = dialog.get_file();
+                    if (file) {
+                        let path = file.get_path();
+                        if (path) {
+                            this._importLbls(path)
+                        }
                     }
                 }
+                dialog.destroy();
+            });
+
+            dialog.show();
+        }
+
+        _importLbls(path) {
+            const labelData = DataIEUtils.importSchema(path);
+            for (const lbl of labelData.apis) {
+                lbl.id = GLib.uuid_string_random();
+
+                this._apiAdd(lbl)
             }
-            dialog.destroy();
-        });
 
-        dialog.show();
-    }
+            for (const lbl of labelData.fileMgmt) {
+                lbl.id = GLib.uuid_string_random();
 
-    _importLbls(path) {
-        const labelData = DataIEUtils.importSchema(path);
-        for (const lbl of labelData.apis){
-            lbl.id = GLib.uuid_string_random();
-
-            this._apiAdd(lbl)
+                this._fileTransferAdd(lbl)
+            }
         }
 
-        for (const lbl of labelData.fileMgmt){
-            lbl.id = GLib.uuid_string_random();
-
-            this._fileTransferAdd(lbl)
+        _updateSidebar(action, type) {
+            const iter = this._listStore.append();
+            this._listStore.set_value(iter, 0, action.label);
+            this._listStore.set_value(iter, 1, type);
+            this._listStore.set_value(iter, 2, action.id);
+            this._orderModel.add({ id: action.id, label: action.label, type });
         }
-    }
 
-    _updateSidebar(action) {
-        const iter = this._listStore.append();
-        this._listStore.set_value(iter, 0, action.label);
-        this._listStore.set_value(iter, 1, action.type);
-        this._listStore.set_value(iter, 2, action.id);
-        this._orderModel.add({ id: action.id, label: action.label, type: action.type });
-    }
+        _apiAdd(newApi = null) {
+            const defaultApi = {
+                id: GLib.uuid_string_random(),
+                label: `API ${Date.now()}`,
+                method: "GET",
+                server: "localhost",
+                auth: { type: "No" },
+                params: null,
+                body: null,
+                popup: false
+            };
+            newApi ??= defaultApi;
 
-    _apiAdd(newApi = null) {
-        const defaultApi = {
-            id: GLib.uuid_string_random(),
-            label: `API ${Date.now()}`,
-            method: "GET",
-            server: "localhost",
-            auth: { type: "No" },
-            params: null,
-            body: null,
-            popup: false
-        };
-        newApi ??= defaultApi;
+            this._apiModel.add(newApi);
+            this._updateSidebar(newApi, "API");
+        }
 
-        this._apiModel.add(newApi);
-        this._updateSidebar(newApi);
-    }
-    
-    _fileTransferAdd(newFp = null){
-        const defaultFp = {
-            id: GLib.uuid_string_random(),
-            label: `FM ${Date.now()}`,
-            protocol: "SFTP",
-            user: "root",
-            server: "localhost",
-        };
-        newFp ??= defaultFp;
+        _fileTransferAdd(newFp = null) {
+            const defaultFp = {
+                id: GLib.uuid_string_random(),
+                label: `FM ${Date.now()}`,
+                protocol: "SFTP",
+                user: "root",
+                server: "localhost",
+            };
+            newFp ??= defaultFp;
 
-        this._fmModel.add(newFp);
-        this._updateSidebar(newFp);
-    }
+            this._fmModel.add(newFp);
+            this._updateSidebar(newFp, "FILE");
+        }
 
-    _commandAdd(newCmd = null) {
-        const defaultCmd = {
-            id: GLib.uuid_string_random(),
-            label: `CMD ${Date.now()}`,
-            command: "echo 'Hello World'",
-            useTerminal: true,
-            workDir: ""
-        };
-        newCmd ??= defaultCmd;
+        _commandAdd(newCmd = null) {
+            const defaultCmd = {
+                id: GLib.uuid_string_random(),
+                label: `CMD ${Date.now()}`,
+                command: "echo 'Hello World'",
+                useTerminal: true,
+                workDir: "",
+                preferredTerminal: ""
+            };
+            newCmd ??= defaultCmd;
 
-        this._cmdModel.add(newCmd); 
-        this._updateSidebar(newCmd);
-    }
+            this._cmdModel.add(newCmd);
+            this._updateSidebar(newCmd, "CMD");
+        }
 
-    _lblDelete() {
-        const [ok, _, iter] = this._selection.get_selected();
-        if (!ok) {
-            this._apiDetails.set_visible(false);
+        _lblDelete() {
+            const [ok, _, iter] = this._selection.get_selected();
+            if (!ok) {
+                this._apiDetails.set_visible(false);
+                this._fmDetails.set_visible(false);
+                this._cmdDetails.set_visible(false);
+                this._currentId = undefined;
+                return;
+            }
+
+            const id = this._listStore.get_value(iter, 2);
+            const type = this._listStore.get_value(iter, 1);
+
+            if (type === "API") {
+                this._apiModel.remove(id);
+            } else if (type === "FILE") {
+                this._fmModel.remove(id);
+            } else if (type === "CMD") {
+                this._cmdModel.remove(id);
+            }
+
+            this._orderModel.remove(id);
+
+            this._listStore.remove(iter);
+        }
+
+        _buildRightColumn() {
+            this._details = new Gtk.Box({
+                orientation: Gtk.Orientation.VERTICAL,
+                spacing: 6,
+                margin_top: 10,
+                margin_bottom: 10,
+                margin_start: 10,
+                margin_end: 10,
+                hexpand: true,
+                vexpand: true
+            });
+
+            this._details.append(new Gtk.Label({
+                halign: Gtk.Align.START,
+                label: "Label",
+                opacity: 0.7
+            }));
+
+            this._lbl = new Gtk.Entry({ placeholder_text: "Label" });
+            this._labelError = new Gtk.Label({ label: "Label cannot be empty", halign: Gtk.Align.START, visible: false });
+            this._labelError.get_style_context().add_class("error-label");
+            this._details.append(this._lbl);
+            this._details.append(this._labelError);
+
+            this._details.append(this._buildApiDetails());
+
+            this._details.append(this._buildFmDetails());
+
+            this._details.append(this._buildCmdDetails());
+
+            this._signals.push({
+                widg: this._lbl,
+                sig: this._lbl.connect("changed", () => this._onFieldChanged())
+            });
+
+            this._onSelectionChanged();
+
+            return this._details;
+        }
+
+        _buildApiDetails() {
+            this._apiDetails = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 })
+
+            this._apiDetails.append(new Gtk.Label({
+                halign: Gtk.Align.START,
+                label: "Options",
+                margin_top: 10,
+                opacity: 0.7
+            }));
+            this._methodCombo = new Gtk.ComboBoxText();
+            this._methodCombo.append("GET", "GET");
+            this._methodCombo.append("POST", "POST");
+            this._methodCombo.append("PUT", "PUT");
+            this._methodCombo.append("PATCH", "PATCH");
+            this._methodCombo.append("DELETE", "DELETE");
+            this._methodCombo.set_active(0);
+            this._apiDetails.append(this._methodCombo);
+
+            this._apiServer = new Gtk.Entry({ placeholder_text: "Path URL" });
+            this._apiServerError = new Gtk.Label({ label: "Server URL cannot be empty", halign: Gtk.Align.START, visible: false });
+            this._apiServerError.get_style_context().add_class("error-label");
+            this._apiDetails.append(this._apiServer);
+            this._apiDetails.append(this._apiServerError);
+
+            this._apiDetails.append(new Gtk.Label({
+                halign: Gtk.Align.START,
+                label: "Authorization",
+                margin_top: 10,
+                opacity: 0.7
+            }));
+            this._authCombo = new Gtk.ComboBoxText();
+            this._authCombo.append("No", "No Auth");
+            this._authCombo.append("Key", "Api Key");
+            this._authCombo.append("Basic", "Basic");
+            this._authCombo.append("Bearer", "Bearer");
+            this._authCombo.set_active(0);
+            this._apiDetails.append(this._authCombo);
+            this._headerName = new Gtk.Entry({ placeholder_text: "Header Name", visible: false });
+            this._apiDetails.append(this._headerName);
+            this._apiKey = new Gtk.Entry({ placeholder_text: "API Key", visible: false });
+            this._apiDetails.append(this._apiKey);
+            this._bearerKey = new Gtk.Entry({ placeholder_text: "Bearer Key", visible: false });
+            this._apiDetails.append(this._bearerKey);
+            this._userBasic = new Gtk.Entry({ placeholder_text: "Username", visible: false });
+            this._apiDetails.append(this._userBasic);
+            this._passBasic = new Gtk.Entry({ placeholder_text: "Password", visible: false });
+            this._apiDetails.append(this._passBasic);
+
+            this._apiDetails.append(new Gtk.Label({
+                label: "Params - (JSON)",
+                halign: Gtk.Align.START,
+                margin_top: 10,
+                opacity: 0.7
+            }));
+            this._paramsJson = new Gtk.Entry({ placeholder_text: "Params" });
+            this._apiDetails.append(this._paramsJson);
+
+            this._apiDetails.append(new Gtk.Label({
+                halign: Gtk.Align.START,
+                label: "Body - (JSON)",
+                margin_top: 10,
+                opacity: 0.7
+            }));
+            this._bodyJson = new Gtk.Entry({ placeholder_text: "Body" });
+            this._apiDetails.append(this._bodyJson);
+
+            this._popupResponse = new Gtk.CheckButton({ label: "Popup Response" });
+            this._apiDetails.append(this._popupResponse);
+
+            this._signals.push({
+                widg: this._popupResponse,
+                sig: this._popupResponse.connect("toggled", () => { this._onApiChanged() })
+            });
+
+            this._signals.push({
+                widg: this._authCombo,
+                sig: this._authCombo.connect("changed", () => {
+                    const authType = this._authCombo.get_active_id();
+
+                    this._headerName.visible = authType === "Key";
+                    this._apiKey.visible = authType === "Key";
+                    this._bearerKey.visible = authType === "Bearer";
+                    this._userBasic.visible = authType === "Basic";
+                    this._passBasic.visible = authType === "Basic";
+
+                    this._onApiChanged()
+                })
+            });
+
+            [
+                this._methodCombo,
+                this._apiServer,
+                this._headerName,
+                this._apiKey,
+                this._bearerKey,
+                this._userBasic,
+                this._passBasic,
+                this._paramsJson,
+                this._bodyJson
+            ].forEach(i => {
+                this._signals.push({
+                    widg: i,
+                    sig: i.connect("changed", () => this._onApiChanged())
+                });
+            });
+
+            return this._apiDetails
+        }
+
+        _buildFmDetails() {
+            this._fmDetails = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 })
+
+            this._fmDetails.append(new Gtk.Label({
+                halign: Gtk.Align.START,
+                label: "Protocol",
+                margin_top: 10,
+                opacity: 0.7
+            }));
+            this._protocolCombo = new Gtk.ComboBoxText();
+            this._protocolCombo.append("SFTP", "SFTP");
+            this._protocolCombo.append("FTP", "FTP");
+            this._protocolCombo.set_active(0);
+            this._fmDetails.append(this._protocolCombo);
+
+            this._fmDetails.append(new Gtk.Label({
+                halign: Gtk.Align.START,
+                label: "Details",
+                margin_top: 10,
+                opacity: 0.7
+            }));
+
+            this._fmServer = new Gtk.Entry({ placeholder_text: "Path URL" });
+            this._fmServerError = new Gtk.Label({ label: "Server URL cannot be empty", halign: Gtk.Align.START, visible: false });
+            this._fmServerError.get_style_context().add_class("error-label");
+            this._fmDetails.append(this._fmServer);
+            this._fmDetails.append(this._fmServerError);
+
+            this._user = new Gtk.Entry({ placeholder_text: "User" });
+            this._userError = new Gtk.Label({ label: "User cannot be empty", halign: Gtk.Align.START, visible: false });
+            this._userError.get_style_context().add_class("error-label");
+            this._fmDetails.append(this._user);
+            this._fmDetails.append(this._userError);
+
+            [
+                this._protocolCombo,
+                this._user,
+                this._fmServer,
+            ].forEach(i => {
+                this._signals.push({
+                    widg: i,
+                    sig: i.connect("changed", () => this._onFmChanged())
+                });
+            });
+
+            return this._fmDetails;
+        }
+
+        _buildCmdDetails() {
+            this._cmdDetails = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+
+            this._cmdDetails.append(new Gtk.Label({
+                halign: Gtk.Align.START,
+                label: "Shell Command",
+                margin_top: 10,
+                opacity: 0.7
+            }));
+
+            this._cmdEntry = new Gtk.Entry({ placeholder_text: "e.g. ./your-command.sh" });
+            this._cmdDetails.append(this._cmdEntry);
+
+            this._cmdWorkDir = new Gtk.Entry({ placeholder_text: "Working Directory (Optional)" });
+            this._cmdDetails.append(this._cmdWorkDir);
+
+            this._cmdPreferredTerminal = new Gtk.Entry({ placeholder_text: "System default (e.g. ptyxis, gnome-terminal)" });
+            this._cmdDetails.append(this._cmdPreferredTerminal);
+
+            this._useTerminalToggle = new Gtk.CheckButton({ label: "Run in Terminal / Sudo" });
+
+            this._cmdDetails.append(this._useTerminalToggle);
+
+            [this._cmdEntry, this._cmdWorkDir, this._cmdPreferredTerminal].forEach(w => {
+                this._signals.push({
+                    widg: w,
+                    sig: w.connect("changed", () => this._onCmdChanged())
+                });
+            });
+
+            this._signals.push({
+                widg: this._useTerminalToggle,
+                sig: this._useTerminalToggle.connect("toggled", () => this._onCmdChanged())
+            });
+
+            return this._cmdDetails;
+        }
+
+        _onSelectionChanged() {
+            const newOrder = [];
+            const [exists, currentIter] = this._listStore.get_iter_first();
+            if (!exists) {
+                this._details.set_visible(false);
+                return;
+            }
+
+            do {
+                const ord = this._orderModel.get(this._listStore.get_value(currentIter, 2));
+                if (ord) newOrder.push(ord);
+            } while (this._listStore.iter_next(currentIter));
+
+            this._orderModel._save(newOrder);
+
+            const [ok, model, iter] = this._selection.get_selected();
+            if (!ok) {
+                this._details.set_visible(false);
+                this._currentId = undefined;
+                return;
+            }
+            const type = model.get_value(iter, 1);
+            this._currentId = model.get_value(iter, 2);
+
+            if (type === "API") {
+                this._updateApiSelected();
+            } else if (type === "FILE") {
+                this._updateFmSelected();
+            } else if (type === "CMD") {
+                this._updateCmdSelected();
+            }
+
+            this._details.set_visible(true);
+        }
+
+        _updateApiSelected() {
+            this._apiDetails.set_visible(true);
             this._fmDetails.set_visible(false);
             this._cmdDetails.set_visible(false);
-            this._currentId = undefined;
-            return;
+
+            const api = this._apiModel.get(this._currentId);
+            if (!api) return;
+
+            this._lbl.set_text(api.label);
+            this._methodCombo.set_active_id(api.method);
+            this._apiServer.set_text(api.server);
+
+            this._headerName.set_text("");
+            this._apiKey.set_text("");
+            this._bearerKey.set_text("");
+            this._userBasic.set_text("");
+            this._passBasic.set_text("");
+            this._authCombo.set_active_id(api.auth.type);
+            switch (api.auth.type) {
+                case "Key":
+                    this._headerName.set_text(api.auth.headerName || "");
+                    this._apiKey.set_text(api.auth.apiKey || "");
+                    break;
+                case "Bearer":
+                    this._bearerKey.set_text(api.auth.bearerKey || "");
+                    break;
+                case "Basic":
+                    this._userBasic.set_text(api.auth.user || "");
+                    this._passBasic.set_text(api.auth.pass || "");
+                    break;
+            }
+            this._paramsJson.set_text(api.params ?? "");
+            this._bodyJson.set_text(api.body ?? "");
+            this._popupResponse.set_active(api.popup);
         }
 
-        const id = this._listStore.get_value(iter, 2);
-        const type = this._listStore.get_value(iter, 1);
+        _updateFmSelected() {
+            this._apiDetails.set_visible(false);
+            this._cmdDetails.set_visible(false);
+            this._fmDetails.set_visible(true);
 
-        if (type === "API"){
-            this._apiModel.remove(id);
-        } else if (type = "FILE") {
-            this._fmModel.remove(id);
-        } else if (type = "CMD") {
-            this._cmdModel.remove(id);
+            const fm = this._fmModel.get(this._currentId);
+            if (!fm) return;
+
+            this._lbl.set_text(fm.label);
+            this._protocolCombo.set_active_id(fm.protocol);
+            this._user.set_text(fm.user);
+            this._fmServer.set_text(fm.server);
         }
 
-        this._orderModel.remove(id);
+        _updateCmdSelected() {
+            this._apiDetails.set_visible(false);
+            this._cmdDetails.set_visible(true);
+            this._fmDetails.set_visible(false);
 
-        this._listStore.remove(iter);
-    }
+            const cmd = this._cmdModel.get(this._currentId);
+            if (!cmd) return;
 
-    _buildRightColumn() {
-        this._details = new Gtk.Box({
-            orientation: Gtk.Orientation.VERTICAL,
-            spacing: 6,
-            margin_top: 10,
-            margin_bottom: 10,
-            margin_start: 10,
-            margin_end: 10,
-            hexpand: true,
-            vexpand: true
-        });
-
-        this._details.append(new Gtk.Label({ 
-            halign: Gtk.Align.START,
-            label: "Label",
-            opacity: 0.7
-        }));
-
-        this._lbl = new Gtk.Entry({ placeholder_text: "Label" });
-        this._labelError = new Gtk.Label({ label: "Label cannot be empty", halign: Gtk.Align.START, visible: false });
-        this._labelError.get_style_context().add_class("error-label");
-        this._details.append(this._lbl);
-        this._details.append(this._labelError);
-
-        this._details.append(this._buildApiDetails());
-
-        this._details.append(this._buildFmDetails());
-
-        this._details.append(this._buildCmdDetails());
-
-        this._signals.push({
-            widg: this._lbl, 
-            sig: this._lbl.connect("changed", () => this._onFieldChanged())
-        });
-
-        this._onSelectionChanged();
-
-        return this._details;
-    }
-
-    _buildApiDetails() {
-        this._apiDetails = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 6})
-        
-        this._apiDetails.append(new Gtk.Label({ 
-            halign: Gtk.Align.START,
-            label: "Options",
-            margin_top: 10,
-            opacity: 0.7
-        }));
-        this._methodCombo = new Gtk.ComboBoxText();
-        this._methodCombo.append("GET", "GET");
-        this._methodCombo.append("POST", "POST");
-        this._methodCombo.append("PUT", "PUT");
-        this._methodCombo.append("PATCH", "PATCH");
-        this._methodCombo.append("DELETE", "DELETE");
-        this._methodCombo.set_active(0);
-        this._apiDetails.append(this._methodCombo);
-
-        this._apiServer = new Gtk.Entry({ placeholder_text: "Path URL" });
-        this._apiServerError = new Gtk.Label({ label: "Server URL cannot be empty", halign: Gtk.Align.START, visible: false });
-        this._apiServerError.get_style_context().add_class("error-label");
-        this._apiDetails.append(this._apiServer);
-        this._apiDetails.append(this._apiServerError);
-        
-        this._apiDetails.append(new Gtk.Label({
-            halign: Gtk.Align.START,
-            label: "Authorization",
-            margin_top: 10,
-            opacity: 0.7
-        }));
-        this._authCombo = new Gtk.ComboBoxText();
-        this._authCombo.append("No", "No Auth");
-        this._authCombo.append("Key", "Api Key");
-        this._authCombo.append("Basic", "Basic");
-        this._authCombo.append("Bearer", "Bearer");
-        this._authCombo.set_active(0);
-        this._apiDetails.append(this._authCombo);
-        this._headerName = new Gtk.Entry({ placeholder_text: "Header Name", visible: false });
-        this._apiDetails.append(this._headerName);
-        this._apiKey = new Gtk.Entry({ placeholder_text: "API Key", visible: false });
-        this._apiDetails.append(this._apiKey);
-        this._bearerKey = new Gtk.Entry({ placeholder_text: "Bearer Key", visible: false });
-        this._apiDetails.append(this._bearerKey);
-        this._userBasic = new Gtk.Entry({ placeholder_text: "Username", visible: false });
-        this._apiDetails.append(this._userBasic);
-        this._passBasic = new Gtk.Entry({ placeholder_text: "Password", visible: false });
-        this._apiDetails.append(this._passBasic);
-
-        this._apiDetails.append(new Gtk.Label({
-            label: "Params - (JSON)",
-            halign: Gtk.Align.START,
-            margin_top: 10,
-            opacity: 0.7
-        }));
-        this._paramsJson = new Gtk.Entry({ placeholder_text: "Params" });
-        this._apiDetails.append(this._paramsJson);
-
-        this._apiDetails.append(new Gtk.Label({
-            halign: Gtk.Align.START,
-            label: "Body - (JSON)",
-            margin_top: 10,
-            opacity: 0.7
-        }));
-        this._bodyJson = new Gtk.Entry({ placeholder_text: "Body" });
-        this._apiDetails.append(this._bodyJson);
-
-        this._popupResponse = new Gtk.CheckButton({ label: "Popup Response" });
-        this._apiDetails.append(this._popupResponse);
-
-        this._signals.push({
-            widg: this._popupResponse, 
-            sig: this._popupResponse.connect("toggled", () =>{ this._onApiChanged() })
-        });
-
-        this._signals.push({
-            widg: this._authCombo, 
-            sig: this._authCombo.connect("changed", () =>{
-                const authType = this._authCombo.get_active_id();
-
-                this._headerName.visible = authType === "Key";
-                this._apiKey.visible = authType === "Key";
-                this._bearerKey.visible = authType === "Bearer";
-                this._userBasic.visible = authType === "Basic";
-                this._passBasic.visible = authType === "Basic";
-
-                this._onApiChanged()
-            })
-        });
-
-        [
-            this._methodCombo,
-            this._apiServer,
-            this._headerName,
-            this._apiKey,
-            this._bearerKey,
-            this._userBasic,
-            this._passBasic,
-            this._paramsJson,
-            this._bodyJson
-        ].forEach(i => {
-            this._signals.push({
-                widg: i, 
-                sig: i.connect("changed", () => this._onApiChanged())
-            });
-        });
-
-        return this._apiDetails
-    }
-
-    _buildFmDetails() {
-        this._fmDetails = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 6})
-
-        this._fmDetails.append(new Gtk.Label({ 
-            halign: Gtk.Align.START,
-            label: "Protocol",
-            margin_top: 10,
-            opacity: 0.7
-        }));
-        this._protocolCombo = new Gtk.ComboBoxText();
-        this._protocolCombo.append("SFTP", "SFTP");
-        this._protocolCombo.append("FTP", "FTP");
-        this._protocolCombo.set_active(0);
-        this._fmDetails.append(this._protocolCombo);
-
-        this._fmDetails.append(new Gtk.Label({ 
-            halign: Gtk.Align.START,
-            label: "Details",
-            margin_top: 10,
-            opacity: 0.7
-        }));
-
-        this._fmServer = new Gtk.Entry({ placeholder_text: "Path URL" });
-        this._fmServerError = new Gtk.Label({ label: "Server URL cannot be empty", halign: Gtk.Align.START, visible: false });
-        this._fmServerError.get_style_context().add_class("error-label");
-        this._fmDetails.append(this._fmServer);
-        this._fmDetails.append(this._fmServerError);
-
-        this._user = new Gtk.Entry({ placeholder_text: "User" });
-        this._userError = new Gtk.Label({ label: "User cannot be empty", halign: Gtk.Align.START, visible: false });
-        this._userError.get_style_context().add_class("error-label");
-        this._fmDetails.append(this._user);
-        this._fmDetails.append(this._userError);
-
-        [
-            this._protocolCombo,
-            this._user,
-            this._fmServer,
-        ].forEach(i => {
-            this._signals.push({
-                widg: i, 
-                sig: i.connect("changed", () => this._onFmChanged())
-            });
-        });
-
-        return this._fmDetails;
-    }
-
-    _buildCmdDetails() {
-        this._cmdDetails = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
-
-        this._cmdDetails.append(new Gtk.Label({ 
-            halign: Gtk.Align.START,
-            label: "Shell Command",
-            margin_top: 10,
-            opacity: 0.7
-        }));
-
-        this._cmdEntry = new Gtk.Entry({ placeholder_text: "e.g. ./your-command.sh" });
-        this._cmdDetails.append(this._cmdEntry);
-
-        this._cmdWorkDir = new Gtk.Entry({ placeholder_text: "Working Directory (Optional)" });
-        this._cmdDetails.append(this._cmdWorkDir);
-
-        this._useTerminalToggle = new Gtk.CheckButton({ label: "Run in Terminal" });
-        this._cmdDetails.append(this._useTerminalToggle);
-
-        [this._cmdEntry, this._cmdWorkDir].forEach(w => {
-            this._signals.push({
-                widg: w, 
-                sig: w.connect("changed", () => this._onCmdChanged())
-            });
-        });
-        
-        this._signals.push({
-            widg: this._useTerminalToggle, 
-            sig: this._useTerminalToggle.connect("toggled", () => this._onCmdChanged())
-        });
-
-        return this._cmdDetails;
-    }
-
-    _onSelectionChanged() {
-        const newOrder = [];
-        const [exists, currentIter] = this._listStore.get_iter_first();
-        if (!exists){
-            this._details.set_visible(false);
-            return;
+            this._lbl.set_text(cmd.label);
+            this._cmdEntry.set_text(cmd.command || "");
+            this._cmdWorkDir.set_text(cmd.workDir || "");
+            this._cmdPreferredTerminal.set_text(cmd.preferredTerminal || "");
+            this._useTerminalToggle.set_active(cmd.useTerminal ?? true);
         }
 
-        do {
-            const ord = this._orderModel.get(this._listStore.get_value(currentIter, 2));
-            if (ord) newOrder.push(ord);
-        } while (this._listStore.iter_next(currentIter));
+        _onFieldChanged() {
+            const [ok, model, iter] = this._selection.get_selected();
+            if (!ok || !iter) {
+                return;
+            }
+            const type = model.get_value(iter, 1);
 
-        this._orderModel._save(newOrder);
-        
-        const [ok, model, iter] = this._selection.get_selected();
-        if (!ok) {
-            this._details.set_visible(false);
-            this._currentId = undefined;
-            return;
-        }
-        const type  = model.get_value(iter, 1);
-        this._currentId = model.get_value(iter, 2);
-
-        if (type === "API"){
-            this._updateApiSelected();
-        } else if (type === "FILE") {
-            this._updateFmSelected();
-        } else if (type === "CMD") {
-            this._updateCmdSelected();
+            if (type === "API") {
+                this._onApiChanged(iter);
+            } else if (type === "FILE") {
+                this._onFmChanged(iter);
+            } else if (type === "CMD") {
+                this._onCmdChanged(iter);
+            }
         }
 
-        this._details.set_visible(true);
-    }
+        _onApiChanged(iter) {
+            if (this._currentId === undefined)
+                return;
+            let valid = true;
 
-    _updateApiSelected() {
-        this._apiDetails.set_visible(true);
-        this._fmDetails.set_visible(false);
-        this._cmdDetails.set_visible(false);
+            const label = this._lbl.get_text().trim();
+            const server = this._apiServer.get_text().trim();
 
-        const api = this._apiModel.get(this._currentId);
-        if (!api) return;
+            if (!label) {
+                this._labelError.visible = true;
+                valid = false;
+            } else {
+                this._labelError.visible = false;
+            }
 
-        this._lbl.set_text(api.label);
-        this._methodCombo.set_active_id(api.method);
-        this._apiServer.set_text(api.server);
+            if (!server) {
+                this._apiServerError.visible = true;
+                valid = false;
+            } else {
+                this._apiServerError.visible = false;
+            }
 
-        this._headerName.set_text("");
-        this._apiKey.set_text("");
-        this._bearerKey.set_text("");
-        this._userBasic.set_text("");
-        this._passBasic.set_text("");
-        this._authCombo.set_active_id(api.auth.type);
-        switch (api.auth.type){
-            case "Key":
-                this._headerName.set_text(api.auth.headerName || "");
-                this._apiKey.set_text(api.auth.apiKey || "");
-                break;
-            case "Bearer":
-                this._bearerKey.set_text(api.auth.bearerKey || "");
-                break;
-            case "Basic":
-                this._userBasic.set_text(api.auth.user || "");
-                this._passBasic.set_text(api.auth.pass || "");
-                break;
+            if (!valid)
+                return;
+
+            const api = {
+                id: this._currentId,
+                label,
+                method: this._methodCombo.get_active_id(),
+                server,
+                auth: this._getAuthData(),
+                params: this._paramsJson.get_text().trim(),
+                body: this._bodyJson.get_text().trim(),
+                popup: this._popupResponse.get_active()
+            };
+
+            const order = {
+                id: this._currentId,
+                label,
+                type: "API",
+                trigger: !this._orderModel.get(this._currentId).trigger
+            };
+
+            this._apiModel.update(this._currentId, api);
+            this._orderModel.update(this._currentId, order)
+
+            if (!iter) {
+                const [ok, _, p] = this._selection.get_selected();
+                if (!ok) return
+                iter = p
+            }
+
+            this._listStore.set(iter, [0], [label]);
         }
-        this._paramsJson.set_text(api.params ?? "");
-        this._bodyJson.set_text(api.body ?? "");
-        this._popupResponse.set_active(api.popup);
-    }
 
-    _updateFmSelected() {
-        this._apiDetails.set_visible(false);
-        this._cmdDetails.set_visible(false);
-        this._fmDetails.set_visible(true);
+        _onFmChanged(iter) {
+            if (this._currentId === undefined)
+                return;
 
-        const fm = this._fmModel.get(this._currentId);
-        if (!fm) return;
-        
-        this._lbl.set_text(fm.label);
-        this._protocolCombo.set_active_id(fm.protocol);
-        this._user.set_text(fm.user);
-        this._fmServer.set_text(fm.server);
-    }
+            let valid = true;
 
-    _updateCmdSelected() {
-        this._apiDetails.set_visible(false);
-        this._cmdDetails.set_visible(true);
-        this._fmDetails.set_visible(false);
+            const label = this._lbl.get_text().trim();
+            const user = this._user.get_text().trim()
+            const server = this._fmServer.get_text().trim();
 
-        const cmd = this._cmdModel.get(this._currentId);
-        if (!cmd) return;
+            if (!label) {
+                this._labelError.visible = true;
+                valid = false;
+            } else {
+                this._labelError.visible = false;
+            }
 
-        this._lbl.set_text(cmd.label);
-        this._cmdEntry.set_text(cmd.command || "");
-        this._cmdWorkDir.set_text(cmd.workDir || "");
-        this._useTerminalToggle.set_active(cmd.useTerminal ?? true);
-    }
+            if (!user) {
+                this._userError.visible = true;
+                valid = false;
+            } else {
+                this._userError.visible = false;
+            }
 
-    _onFieldChanged() {
-        const [ok, model, iter] = this._selection.get_selected();
-        if (!ok || !iter) {
-            return;
+            if (!server) {
+                this._fmServerError.visible = true;
+                valid = false;
+            } else {
+                this._fmServerError.visible = false;
+            }
+            if (!valid)
+                return;
+
+            const fm = {
+                id: this._currentId,
+                label,
+                protocol: this._protocolCombo.get_active_id(),
+                user,
+                server
+            };
+            const order = {
+                id: this._currentId,
+                label,
+                type: "FILE",
+                trigger: !this._orderModel.get(this._currentId).trigger
+            };
+
+            this._fmModel.update(this._currentId, fm);
+            this._orderModel.update(this._currentId, order);
+
+            if (!iter) {
+                const [ok, _, p] = this._selection.get_selected();
+                if (!ok) return
+                iter = p
+            }
+
+            this._listStore.set(iter, [0], [label]);
         }
-        const type  = model.get_value(iter, 1);
 
-        if (type === "API") {
-            this._onApiChanged(iter);
-        } else if (type === "FILE"){
-            this._onFmChanged(iter);
-        } else if (type === "CMD"){
-            this._onCmdChanged(iter);
-        }
-    }
+        _onCmdChanged(iter) {
+            if (this._currentId === undefined)
+                return;
 
-    _onApiChanged(iter) {
-        if (this._currentId === undefined)
-            return;
-        let valid = true;
-
-        const label = this._lbl.get_text().trim();
-        const server = this._apiServer.get_text().trim();
-
-        if (!label) {
-            this._labelError.visible = true;
-            valid = false;
-        } else {
+            const label = this._lbl.get_text().trim();
+            if (!label) {
+                this._labelError.visible = true;
+                return;
+            }
             this._labelError.visible = false;
+
+            const cmdData = {
+                id: this._currentId,
+                label,
+                command: this._cmdEntry.get_text().trim(),
+                workDir: this._cmdWorkDir.get_text().trim(),
+                useTerminal: this._useTerminalToggle.get_active(),
+                preferredTerminal: this._cmdPreferredTerminal.get_text().trim(),
+            };
+
+            const order = {
+                id: this._currentId,
+                label,
+                type: "CMD",
+                trigger: false
+            };
+
+            this._cmdModel.update(this._currentId, cmdData);
+            this._orderModel.update(this._currentId, order);
+
+            if (!iter) {
+                const [ok, _, p] = this._selection.get_selected();
+                if (ok) iter = p;
+            }
+            if (iter) this._listStore.set(iter, [0], [label]);
         }
 
-        if (!server) {
-            this._apiServerError.visible = true;
-            valid = false;
-        } else {
-            this._apiServerError.visible = false;
-        }
+        _getAuthData() {
+            const type = this._authCombo.get_active_id();
 
-        if (!valid)
-            return;
+            switch (type) {
+                case "Key":
+                    return { type, headerName: this._headerName.get_text().trim(), apiKey: this._apiKey.get_text().trim() };
 
-        const api = { 
-                        id: this._currentId, 
-                        label, 
-                        method: this._methodCombo.get_active_id(),
-                        server,
-                        auth: this._getAuthData(), 
-                        params: this._paramsJson.get_text().trim(),
-                        body: this._bodyJson.get_text().trim(),
-                        popup: this._popupResponse.get_active()
+                case "Bearer":
+                    return { type, bearerKey: this._bearerKey.get_text().trim() };
+
+                case "Basic":
+                    return {
+                        type,
+                        user: this._userBasic.get_text().trim(),
+                        pass: this._passBasic.get_text().trim()
                     };
 
-        const order = { 
-                        id: this._currentId, 
-                        label, 
-                        type: "API",
-                        trigger: !this._orderModel.get(this._currentId).trigger
-                      };
-
-        this._apiModel.update(this._currentId, api);
-        this._orderModel.update(this._currentId, order)
-
-        if (!iter){
-            const [ok, _, p] = this._selection.get_selected();
-            if (!ok) return
-            iter = p
+                default:
+                    return { type };
+            }
         }
 
-        this._listStore.set(iter, [0], [label]);
-    }
+        _showMessage(parent, message) {
+            let dialog = new Gtk.MessageDialog({
+                transient_for: parent.get_root(),
+                modal: true,
+                message_type: Gtk.MessageType.INFO,
+                buttons: Gtk.ButtonsType.OK,
+                text: message,
+            });
 
-    _onFmChanged(iter) {
-        if (this._currentId === undefined)
-            return;
-
-        let valid = true;
-
-        const label = this._lbl.get_text().trim();
-        const user = this._user.get_text().trim()
-        const server = this._fmServer.get_text().trim();
-
-        if (!label) {
-            this._labelError.visible = true;
-            valid = false;
-        } else {
-            this._labelError.visible = false;
+            dialog.connect("response", () => dialog.destroy());
+            dialog.show();
         }
-
-        if (!user) {
-            this._userError.visible = true;
-            valid = false;
-        } else {
-            this._userError.visible = false;
-        }
-
-        if (!server) {
-            this._fmServerError.visible = true;
-            valid = false;
-        } else {
-            this._fmServerError.visible = false;
-        }
-        if (!valid)
-            return;
-
-        const fm = { 
-                        id: this._currentId,
-                        label, 
-                        protocol: this._protocolCombo.get_active_id(), 
-                        user, 
-                        server 
-                    };
-        const order = { 
-                        id: this._currentId, 
-                        label, 
-                        type: "FILE",
-                        trigger: !this._orderModel.get(this._currentId).trigger
-                    };
-        
-        this._fmModel.update(this._currentId, fm);
-        this._orderModel.update(this._currentId, order);
-
-        if (!iter){
-            const [ok, _, p] = this._selection.get_selected();
-            if (!ok) return
-            iter = p
-        }
-
-        this._listStore.set(iter, [0], [label]);
-    }
-
-    _onCmdChanged(iter) {
-        if (this._currentId === undefined) 
-            return;
-
-        const label = this._lbl.get_text().trim();
-        if (!label) {
-            this._labelError.visible = true;
-            return;
-        }
-        this._labelError.visible = false;
-
-        const cmdData = { 
-            id: this._currentId, 
-            label, 
-            command: this._cmdEntry.get_text().trim(),
-            workDir: this._cmdWorkDir.get_text().trim(),
-            useTerminal: this._useTerminalToggle.get_active()
-        };
-
-        const order = { 
-            id: this._currentId, 
-            label, 
-            type: "CMD",
-            trigger: false
-        };
-
-        this._cmdModel.update(this._currentId, cmdData);
-        this._orderModel.update(this._currentId, order);
-
-        if (!iter) {
-            const [ok, _, p] = this._selection.get_selected();
-            if (ok) iter = p;
-        }
-        if (iter) this._listStore.set(iter, [0], [label]);
-    }
-
-    _getAuthData() {
-        const type = this._authCombo.get_active_id();
-
-        switch (type) {
-            case "Key":
-                return { type, headerName: this._headerName.get_text().trim(), apiKey: this._apiKey.get_text().trim() };
-
-            case "Bearer":
-                return { type, bearerKey: this._bearerKey.get_text().trim() };
-
-            case "Basic":
-                return {
-                    type,
-                    user: this._userBasic.get_text().trim(),
-                    pass: this._passBasic.get_text().trim()
-                };
-
-            default:
-                return { type };
-        }
-    }
-
-    _showMessage(parent, message) {
-        let dialog = new Gtk.MessageDialog({
-            transient_for: parent.get_root(),
-            modal: true,
-            message_type: Gtk.MessageType.INFO,
-            buttons: Gtk.ButtonsType.OK,
-            text: message,
-        });
-
-        dialog.connect("response", () => dialog.destroy());
-        dialog.show();
-    }
-});
+    });

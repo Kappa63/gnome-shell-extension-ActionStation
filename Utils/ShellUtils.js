@@ -1,18 +1,60 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-export async function runCommand(command, inTerminal = false, workDir = "") {
-    if (inTerminal) {
+export async function runCommand(command, inTerminal = false, workDir = "", preferredTerminal = "") {
+    const trimmedCmd = command.trim();
+    const isSudo = trimmedCmd.startsWith('sudo ');
+    const actualInTerminal = inTerminal || isSudo;
+
+    if (actualInTerminal) {
         return new Promise((resolve, reject) => {
-            const cdCmd = workDir ? `cd '${workDir}' && ` : "";
-            const terminalCmd = `gnome-terminal -- bash -c "${cdCmd}${command}; echo; echo 'Process finished. Press any key to close...'; read -n 1;"`;
+            let expandedDir = workDir;
+            if (workDir.startsWith('~')) 
+                expandedDir = workDir.replace('~', GLib.get_home_dir());
             
-            try {
-                // spawn_command_line_async is truly fire-and-forget
-                GLib.spawn_command_line_async(terminalCmd);
-                resolve();
-            } catch (e) {
-                reject(new Error(`Failed to launch terminal: ${e.message}`));
+            const cdCmd = expandedDir ? `cd '${expandedDir}' && ` : "";
+            const wrappedCmd = `${cdCmd}${command}; echo; echo 'Process finished. Press any key to close...'; read -n 1;`;
+            
+            const terminals = [...new Set([preferredTerminal, 'xdg-terminal-exec', 'ptyxis', 'gnome-terminal', 'kgx'])];
+            let success = false;
+
+            for (const term of terminals) {
+                if (!term) continue;
+                const binary = term.split(' ')[0];
+
+                if (GLib.find_program_in_path(binary)) {
+                    try {
+                        let argv;
+                        if (['gnome-terminal', 'ptyxis', 'kgx', 'xdg-terminal-exec'].includes(binary)) 
+                            argv = [binary, '--', 'bash', '-c', wrappedCmd];
+                        else 
+                            argv = [binary, '-e', 'bash', '-c', wrappedCmd];
+
+                        let proc = new Gio.Subprocess({
+                            argv: argv,
+                            flags: Gio.SubprocessFlags.NONE
+                        });
+                        proc.init(null);
+                        
+                        proc.wait_async(null, (p, res) => {
+                            try {
+                                p.wait_finish(res);
+                                resolve();
+                            } catch (e) {
+                                reject(e);
+                            }
+                        });
+
+                        success = true;
+                        break;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+
+            if (!success) {
+                reject(new Error("No valid terminal emulator found."));
             }
         });
     }
@@ -27,16 +69,16 @@ export async function runCommand(command, inTerminal = false, workDir = "") {
             });
 
             if (workDir) {
-                let dir = Gio.File.new_for_path(workDir);
+                let expandedDir = workDir.startsWith('~') ? workDir.replace('~', GLib.get_home_dir()) : workDir;
+                let dir = Gio.File.new_for_path(expandedDir);
                 if (dir.query_exists(null)) {
-                    launcher.set_cwd(workDir);
+                    launcher.set_cwd(expandedDir);
                 } else {
-                    return reject(new Error(`Working directory does not exist: ${workDir}`));
+                    return reject(new Error(`Working directory does not exist: ${expandedDir}`));
                 }
             }
 
             let proc = launcher.spawnv(argv);
-            
             proc.wait_async(null, (p, res) => {
                 try {
                     p.wait_finish(res);
