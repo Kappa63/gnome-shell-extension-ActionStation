@@ -5,7 +5,9 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as RemoteFileUtils from './Utils/RemoteFileUtils.js';
 import * as HttpCallUtils from './Utils/HttpCallUtils.js';
+import * as ShellUtils from './Utils/ShellUtils.js';
 import FileMgmt from './models/FileMgmt.js';
+import Commands from './models/Commands.js';
 import Order from './models/Order.js';
 import APIs from './models/APIs.js';
 import Clutter from 'gi://Clutter';
@@ -15,11 +17,11 @@ import Soup from 'gi://Soup';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 
-export default class ServerCommunicatorExtension extends Extension {
+export default class ActionStationExtension extends Extension {
     enable() {
         this._soupSession = new Soup.Session();
 
-        this._serverCommunicator = new ServerCommunicator({
+        this._actionStation = new ActionStation({
             settings: this.getSettings(),
             openPreferences: this.openPreferences,
             uuid: this.uuid,
@@ -27,21 +29,21 @@ export default class ServerCommunicatorExtension extends Extension {
             clipboard: St.Clipboard.get_default(),
             extensionDir: this.dir
         });
-        Main.panel.addToStatusArea(this.uuid, this._serverCommunicator);
+        Main.panel.addToStatusArea(this.uuid, this._actionStation);
     }
 
     disable() {
         this._soupSession.abort()
         this._soupSession = null;
 
-        this._serverCommunicator.destroy();
-        this._serverCommunicator = null;
+        this._actionStation.destroy();
+        this._actionStation = null;
     }
 }
 
-const ServerCommunicator = GObject.registerClass({
-    GTypeName: "ServerCommunicator"
-}, class ServerCommunicator extends PanelMenu.Button {
+const ActionStation = GObject.registerClass({
+    GTypeName: "ActionStation"
+}, class ActionStation extends PanelMenu.Button {
     destroy() {
         if (this._orderChanged) {
             this._ext.settings.disconnect(this._orderChanged);
@@ -51,10 +53,11 @@ const ServerCommunicator = GObject.registerClass({
     }
     
     _init(ext) {
-        super._init(0.0, "ServerCommunicator");
+        super._init(0.0, "ActionStation");
         this._ext = ext
         this._apiModel = new APIs(this._ext.settings);
         this._fmModel = new FileMgmt(this._ext.settings);
+        this._cmdModel = new Commands(this._ext.settings);
         this._orderModel = new Order(this._ext.settings);
         
         this.add_child(new St.Icon({
@@ -72,8 +75,9 @@ const ServerCommunicator = GObject.registerClass({
     _buildMenu() {
         this.menu.removeAll();
         this._order = this._orderModel.getAll();
-        this._apis = this._apiModel.getAll();
-        this._fms = this._fmModel.getAll();
+        // this._apis = this._apiModel.getAll();
+        // this._fms = this._fmModel.getAll();
+        // this._cmds = this._cmdModel.getAll();
 
         const labelPopupList = new PopupMenu.PopupBaseMenuItem({ reactive: false, can_focus: false });
         const scrollView = new St.ScrollView({
@@ -92,7 +96,11 @@ const ServerCommunicator = GObject.registerClass({
                 let a = this._apiModel.get(o.id);
                 // if (a)
                     vbox.add_child(this._buildApiPopup(a));
-            } else {
+            } else if (o.type === "CMD") {
+                let c = this._cmdModel.get(o.id);
+                // if (c)
+                    vbox.add_child(this._buildCmdPopup(c));
+            } else if (o.type === "FILE"){
                 let f = this._fmModel.get(o.id)
                 // if (f)
                     vbox.add_child(this._buildFmPopup(f));
@@ -147,16 +155,35 @@ const ServerCommunicator = GObject.registerClass({
             (async () => {
                 this.menu.close();
                 try {
-                    // global.display.set_cursor(11);
                     Main.notify("Mounting Server...")
                     await RemoteFileUtils.openRemoteInFiles(f.protocol, f.user, f.server);
                 } catch (e) {
                     Main.notify(`Error: ${e.message}`);
-                    // logError(e);
                 } 
-                // finally {
-                //     global.display.set_cursor(null)
-                // }
+            })();
+        });
+
+        return item.actor;
+    }
+
+    _buildCmdPopup(c) {
+        const item = new PopupMenu.PopupMenuItem(c.label);
+        item.actor.insert_child_at_index(new St.Icon({
+            icon_name: "utilities-terminal-symbolic",
+            style_class: "popup-menu-icon"
+        }), 0);
+
+        item.connect("activate", () => {
+            (async () => {
+                this.menu.close();
+                try {
+                    Main.notify("Action Station", `Running: ${c.label}`);
+                    await ShellUtils.runCommand(c.label, c.command, c.useTerminal, c.workDir);
+                    Main.notify("Action Station", `${c.label} completed.`);
+                } catch (e) {
+                    // All errors from ShellUtils end up here
+                    Main.notify(`Error (${c.label})`, e.message);
+                } 
             })();
         });
 

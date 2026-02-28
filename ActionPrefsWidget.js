@@ -1,13 +1,14 @@
 import FileMgmt from './models/FileMgmt.js';
 import Order from './models/Order.js';
 import APIs from './models/APIs.js';
+import Commands from './models/Commands.js';
 import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 import * as DataIEUtils from './Utils/DataIEUtils.js';
 
-export const APIPrefsWidget = GObject.registerClass(
-class APIPrefsWidget extends Gtk.Box {
+export const ActionPrefsWidget = GObject.registerClass(
+class ActionPrefsWidget extends Gtk.Box {
     destroy(){
         if (this._signals.length){
             this._signals.forEach(({ widg, sig }) => widg.disconnect(sig));
@@ -24,7 +25,8 @@ class APIPrefsWidget extends Gtk.Box {
         this._settings = this._extension.getSettings();
         this._apiModel = new APIs(this._settings);
         this._fmModel = new FileMgmt(this._settings);
-        this._orderModel = new Order(this._settings)
+        this._cmdModel = new Commands(this._settings);
+        this._orderModel = new Order(this._settings);
         this._signals = [];
 
         this.append(this._buildLeftColumn());
@@ -95,11 +97,12 @@ class APIPrefsWidget extends Gtk.Box {
         const vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4 });
         popover.set_child(vbox);
 
-        for (let option of ["API", "File Transfer"]) {
+        for (let option of ["API", "File Transfer", "Local Command"]) {
             const item = new Gtk.Button({ label: option });
             item.connect("clicked", () => {
                 if (option === "API") this._apiAdd();
                 else if (option === "File Transfer") this._fileTransferAdd();
+                else if (option === "Local Command") this._commandAdd();
                 popover.popdown();
             });
             vbox.append(item);
@@ -187,6 +190,14 @@ class APIPrefsWidget extends Gtk.Box {
         }
     }
 
+    _updateSidebar(action) {
+        const iter = this._listStore.append();
+        this._listStore.set_value(iter, 0, action.label);
+        this._listStore.set_value(iter, 1, action.type);
+        this._listStore.set_value(iter, 2, action.id);
+        this._orderModel.add({ id: action.id, label: action.label, type: action.type });
+    }
+
     _apiAdd(newApi = null) {
         const defaultApi = {
             id: GLib.uuid_string_random(),
@@ -201,14 +212,10 @@ class APIPrefsWidget extends Gtk.Box {
         newApi ??= defaultApi;
 
         this._apiModel.add(newApi);
-        const iter = this._listStore.append();
-        this._listStore.set_value(iter, 0, newApi.label);
-        this._listStore.set_value(iter, 1, "API");
-        this._listStore.set_value(iter, 2, newApi.id);
-        this._orderModel.add({id: newApi.id, label: newApi.label, type: "API", trigger: false})
+        this._updateSidebar(newApi);
     }
     
-    _fileTransferAdd(newFp){
+    _fileTransferAdd(newFp = null){
         const defaultFp = {
             id: GLib.uuid_string_random(),
             label: `FM ${Date.now()}`,
@@ -219,17 +226,29 @@ class APIPrefsWidget extends Gtk.Box {
         newFp ??= defaultFp;
 
         this._fmModel.add(newFp);
-        const iter = this._listStore.append();
-        this._listStore.set_value(iter, 0, newFp.label);
-        this._listStore.set_value(iter, 1, "FILE");
-        this._listStore.set_value(iter, 2, newFp.id);
-        this._orderModel.add({id: newFp.id, label: newFp.label, type: "FILE", trigger: false})
+        this._updateSidebar(newFp);
+    }
+
+    _commandAdd(newCmd = null) {
+        const defaultCmd = {
+            id: GLib.uuid_string_random(),
+            label: `CMD ${Date.now()}`,
+            command: "echo 'Hello World'",
+            useTerminal: true,
+            workDir: ""
+        };
+        newCmd ??= defaultCmd;
+
+        this._cmdModel.add(newCmd); 
+        this._updateSidebar(newCmd);
     }
 
     _lblDelete() {
         const [ok, _, iter] = this._selection.get_selected();
         if (!ok) {
             this._apiDetails.set_visible(false);
+            this._fmDetails.set_visible(false);
+            this._cmdDetails.set_visible(false);
             this._currentId = undefined;
             return;
         }
@@ -237,11 +256,12 @@ class APIPrefsWidget extends Gtk.Box {
         const id = this._listStore.get_value(iter, 2);
         const type = this._listStore.get_value(iter, 1);
 
-
         if (type === "API"){
             this._apiModel.remove(id);
-        } else {
+        } else if (type = "FILE") {
             this._fmModel.remove(id);
+        } else if (type = "CMD") {
+            this._cmdModel.remove(id);
         }
 
         this._orderModel.remove(id);
@@ -276,6 +296,8 @@ class APIPrefsWidget extends Gtk.Box {
         this._details.append(this._buildApiDetails());
 
         this._details.append(this._buildFmDetails());
+
+        this._details.append(this._buildCmdDetails());
 
         this._signals.push({
             widg: this._lbl, 
@@ -444,6 +466,40 @@ class APIPrefsWidget extends Gtk.Box {
         return this._fmDetails;
     }
 
+    _buildCmdDetails() {
+        this._cmdDetails = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+
+        this._cmdDetails.append(new Gtk.Label({ 
+            halign: Gtk.Align.START,
+            label: "Shell Command",
+            margin_top: 10,
+            opacity: 0.7
+        }));
+
+        this._cmdEntry = new Gtk.Entry({ placeholder_text: "e.g. ./your-command.sh" });
+        this._cmdDetails.append(this._cmdEntry);
+
+        this._cmdWorkDir = new Gtk.Entry({ placeholder_text: "Working Directory (Optional)" });
+        this._cmdDetails.append(this._cmdWorkDir);
+
+        this._useTerminalToggle = new Gtk.CheckButton({ label: "Run in Terminal" });
+        this._cmdDetails.append(this._useTerminalToggle);
+
+        [this._cmdEntry, this._cmdWorkDir].forEach(w => {
+            this._signals.push({
+                widg: w, 
+                sig: w.connect("changed", () => this._onCmdChanged())
+            });
+        });
+        
+        this._signals.push({
+            widg: this._useTerminalToggle, 
+            sig: this._useTerminalToggle.connect("toggled", () => this._onCmdChanged())
+        });
+
+        return this._cmdDetails;
+    }
+
     _onSelectionChanged() {
         const newOrder = [];
         const [exists, currentIter] = this._listStore.get_iter_first();
@@ -470,8 +526,10 @@ class APIPrefsWidget extends Gtk.Box {
 
         if (type === "API"){
             this._updateApiSelected();
-        } else {
+        } else if (type === "FILE") {
             this._updateFmSelected();
+        } else if (type === "CMD") {
+            this._updateCmdSelected();
         }
 
         this._details.set_visible(true);
@@ -480,9 +538,9 @@ class APIPrefsWidget extends Gtk.Box {
     _updateApiSelected() {
         this._apiDetails.set_visible(true);
         this._fmDetails.set_visible(false);
+        this._cmdDetails.set_visible(false);
 
         const api = this._apiModel.get(this._currentId);
-
         if (!api) return;
 
         this._lbl.set_text(api.label);
@@ -515,14 +573,30 @@ class APIPrefsWidget extends Gtk.Box {
 
     _updateFmSelected() {
         this._apiDetails.set_visible(false);
+        this._cmdDetails.set_visible(false);
         this._fmDetails.set_visible(true);
 
         const fm = this._fmModel.get(this._currentId);
+        if (!fm) return;
         
         this._lbl.set_text(fm.label);
         this._protocolCombo.set_active_id(fm.protocol);
         this._user.set_text(fm.user);
         this._fmServer.set_text(fm.server);
+    }
+
+    _updateCmdSelected() {
+        this._apiDetails.set_visible(false);
+        this._cmdDetails.set_visible(true);
+        this._fmDetails.set_visible(false);
+
+        const cmd = this._cmdModel.get(this._currentId);
+        if (!cmd) return;
+
+        this._lbl.set_text(cmd.label);
+        this._cmdEntry.set_text(cmd.command || "");
+        this._cmdWorkDir.set_text(cmd.workDir || "");
+        this._useTerminalToggle.set_active(cmd.useTerminal ?? true);
     }
 
     _onFieldChanged() {
@@ -534,8 +608,10 @@ class APIPrefsWidget extends Gtk.Box {
 
         if (type === "API") {
             this._onApiChanged(iter);
-        } else {
+        } else if (type === "FILE"){
             this._onFmChanged(iter);
+        } else if (type === "CMD"){
+            this._onCmdChanged(iter);
         }
     }
 
@@ -651,6 +727,42 @@ class APIPrefsWidget extends Gtk.Box {
         }
 
         this._listStore.set(iter, [0], [label]);
+    }
+
+    _onCmdChanged(iter) {
+        if (this._currentId === undefined) 
+            return;
+
+        const label = this._lbl.get_text().trim();
+        if (!label) {
+            this._labelError.visible = true;
+            return;
+        }
+        this._labelError.visible = false;
+
+        const cmdData = { 
+            id: this._currentId, 
+            label, 
+            command: this._cmdEntry.get_text().trim(),
+            workDir: this._cmdWorkDir.get_text().trim(),
+            useTerminal: this._useTerminalToggle.get_active()
+        };
+
+        const order = { 
+            id: this._currentId, 
+            label, 
+            type: "CMD",
+            trigger: false
+        };
+
+        this._cmdModel.update(this._currentId, cmdData);
+        this._orderModel.update(this._currentId, order);
+
+        if (!iter) {
+            const [ok, _, p] = this._selection.get_selected();
+            if (ok) iter = p;
+        }
+        if (iter) this._listStore.set(iter, [0], [label]);
     }
 
     _getAuthData() {

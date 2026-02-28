@@ -1,13 +1,13 @@
 {
-  "name": "Server Communicator",
-  "description": "Send API requests to servers or mount them at a click of a button. Copies and shows response in a dialog.",
-  "uuid": "server-communicator@kappa63.github.com",
+  "name": "Action Station",
+  "description": "A powerful action hub to trigger API requests, mount remote servers, or run local shell commands directly from your top bar.",
+  "uuid": "action-station@kappa63.github.com",
   "shell-version": [
     "48",
     "49",
     "50"
   ],
-  "settings-schema": "org.gnome.shell.extensions.server-communicator",
-  "url": "https://github.com/Kappa63/gnome-shell-extension-ServerCommunicator",
+  "settings-schema": "org.gnome.shell.extensions.action-station",
+  "url": "https://github.com/Kappa63/gnome-shell-extension-ActionStation",
   "version": 7
 }
