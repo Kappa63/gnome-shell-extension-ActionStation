@@ -26,7 +26,6 @@ export default class ActionStationExtension extends Extension {
             openPreferences: this.openPreferences,
             uuid: this.uuid,
             session: this._soupSession,
-            clipboard: St.Clipboard.get_default(),
             extensionDir: this.dir
         });
         Main.panel.addToStatusArea(this.uuid, this._actionStation);
@@ -129,11 +128,14 @@ const ActionStation = GObject.registerClass({
                 this.menu.close();
                 try {
                     const response = await HttpCallUtils.callApi(this._ext.session, a.method, a.server, a.auth, a.params, a.body);
-                    this._ext.clipboard.set_text(St.ClipboardType.CLIPBOARD, response);
-                    if (a.popup)
-                        this._showJsonModal(a.server, JSON.parse(response))
-                    else
-                        Main.notify("Success")
+                    
+                    if (a.popup) {
+                        this._showJsonModal(a.server, JSON.parse(response));
+                    } else {
+                        const clipboard = St.Clipboard.get_default();
+                        clipboard.set_text(St.ClipboardType.CLIPBOARD, response);
+                        Main.notify("Response copied to clipboard");
+                    }
                 } catch (e) {
                     Main.notify(`Error: ${e.message}`);
                 }

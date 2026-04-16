@@ -140,6 +140,7 @@ export const ActionPrefsWidget = GObject.registerClass(
             const labelData = {};
             labelData.apis = this._apiModel.getAll();
             labelData.fileMgmt = this._fmModel.getAll();
+            labelData.commands = this._cmdModel.getAll();
             try {
                 DataIEUtils.exportSchema(JSON.stringify(labelData, null, 2));
                 this._showMessage(btn, "Export successful. Saved in Downloads.")

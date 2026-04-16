@@ -3,19 +3,19 @@ import GLib from 'gi://GLib';
 
 export async function runCommand(command, inTerminal = false, workDir = "", preferredTerminal = "") {
     const trimmedCmd = command.trim();
-    const isSudo = trimmedCmd.startsWith('sudo ');
+    const isSudo = trimmedCmd.startsWith("sudo ");
     const actualInTerminal = inTerminal || isSudo;
 
     if (actualInTerminal) {
         return new Promise((resolve, reject) => {
             let expandedDir = workDir;
-            if (workDir.startsWith('~')) 
-                expandedDir = workDir.replace('~', GLib.get_home_dir());
+            if (workDir.startsWith("~")) 
+                expandedDir = workDir.replace("~", GLib.get_home_dir());
             
             const cdCmd = expandedDir ? `cd '${expandedDir}' && ` : "";
             const wrappedCmd = `${cdCmd}${command}; echo; echo 'Process finished. Press any key to close...'; read -n 1;`;
             
-            const terminals = [...new Set([preferredTerminal, 'xdg-terminal-exec', 'ptyxis', 'gnome-terminal', 'kgx'])];
+            const terminals = [...new Set([preferredTerminal, "xdg-terminal-exec", "ptyxis", "gnome-terminal", "kgx"])];
             let success = false;
 
             for (const term of terminals) {
@@ -25,10 +25,10 @@ export async function runCommand(command, inTerminal = false, workDir = "", pref
                 if (GLib.find_program_in_path(binary)) {
                     try {
                         let argv;
-                        if (['gnome-terminal', 'ptyxis', 'kgx', 'xdg-terminal-exec'].includes(binary)) 
-                            argv = [binary, '--', 'bash', '-c', wrappedCmd];
+                        if (["gnome-terminal", "ptyxis", "kgx", "xdg-terminal-exec"].includes(binary)) 
+                            argv = [binary, "--", "bash", "-c", wrappedCmd];
                         else 
-                            argv = [binary, '-e', 'bash', '-c', wrappedCmd];
+                            argv = [binary, "-e", "bash", "-c", wrappedCmd];
 
                         let proc = new Gio.Subprocess({
                             argv: argv,
@@ -69,7 +69,7 @@ export async function runCommand(command, inTerminal = false, workDir = "", pref
             });
 
             if (workDir) {
-                let expandedDir = workDir.startsWith('~') ? workDir.replace('~', GLib.get_home_dir()) : workDir;
+                let expandedDir = workDir.startsWith("~") ? workDir.replace("~", GLib.get_home_dir()) : workDir;
                 let dir = Gio.File.new_for_path(expandedDir);
                 if (dir.query_exists(null)) {
                     launcher.set_cwd(expandedDir);
