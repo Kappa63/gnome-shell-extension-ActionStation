@@ -137,10 +137,11 @@ export const ActionPrefsWidget = GObject.registerClass(
         }
 
         _exportLbls(btn) {
+            const activeIds = new Set(this._orderModel.getAll().map(o => o.id));
             const labelData = {};
-            labelData.apis = this._apiModel.getAll();
-            labelData.fileMgmt = this._fmModel.getAll();
-            labelData.commands = this._cmdModel.getAll();
+            labelData.apis = this._apiModel.getAll().filter(item => activeIds.has(item.id));
+            labelData.fileMgmt = this._fmModel.getAll().filter(item => activeIds.has(item.id));
+            labelData.commands = this._cmdModel.getAll().filter(item => activeIds.has(item.id));
             try {
                 DataIEUtils.exportSchema(JSON.stringify(labelData, null, 2));
                 this._showMessage(btn, "Export successful. Saved in Downloads.")
@@ -178,16 +179,22 @@ export const ActionPrefsWidget = GObject.registerClass(
 
         _importLbls(path) {
             const labelData = DataIEUtils.importSchema(path);
-            for (const lbl of labelData.apis) {
+            for (const lbl of (labelData.apis || [])) {
                 lbl.id = GLib.uuid_string_random();
 
                 this._apiAdd(lbl)
             }
 
-            for (const lbl of labelData.fileMgmt) {
+            for (const lbl of (labelData.fileMgmt || [])) {
                 lbl.id = GLib.uuid_string_random();
 
                 this._fileTransferAdd(lbl)
+            }
+
+            for (const lbl of (labelData.commands || [])) {
+                lbl.id = GLib.uuid_string_random();
+
+                this._commandAdd(lbl)
             }
         }
 
