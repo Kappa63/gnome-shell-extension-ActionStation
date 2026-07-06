@@ -1,6 +1,6 @@
 {
   "name": "Action Station",
-  "description": "A powerful action hub to trigger API requests, mount remote servers, or run local shell commands directly from your top bar.",
+  "description": "A powerful action hub to trigger API requests, mount remote servers, or run local shell commands directly from your top bar. API responses are copied to your clipboard so you can paste them wherever you need.",
   "uuid": "action-station@kappa63.github.com",
   "shell-version": [
     "48",

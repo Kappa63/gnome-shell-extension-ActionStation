@@ -23,10 +23,6 @@ export default class ModelController {
     getAll() {
         return this._load();
     }
-    
-    getAt(index) {
-        return this._load()[index];
-    }
 
     add(obj) {
         const list = this._load();
@@ -40,12 +36,6 @@ export default class ModelController {
 
     update(id, newObj) {
         this._save(this._load().map(obj => obj.id === id ? newObj : obj));
-    }
-
-    updateAt(index, newObj) {
-        const list = this._load();
-        list[index] = newObj;
-        this._save(list);
     }
 
     get(id) {

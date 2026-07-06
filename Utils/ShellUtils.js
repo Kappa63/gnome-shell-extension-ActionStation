@@ -2,11 +2,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 export async function runCommand(command, inTerminal = false, workDir = "", preferredTerminal = "") {
-    const trimmedCmd = command.trim();
-    const isSudo = trimmedCmd.startsWith('sudo ');
-    const actualInTerminal = inTerminal || isSudo;
-
-    if (actualInTerminal) {
+    if (inTerminal) {
         return new Promise((resolve, reject) => {
             let expandedDir = workDir;
             if (workDir.startsWith('~')) 

@@ -3,7 +3,7 @@ import Soup from 'gi://Soup';
 
 export async function callApi(session, method, url, auth, params, body) {
     return new Promise((resolve, reject) => {
-        const message = params.length?Soup.Message.new_from_encoded_form(method, url, Soup.form_encode_hash(JSON.parse(params))):Soup.Message.new(method, url)
+        const message = params?.length?Soup.Message.new_from_encoded_form(method, url, Soup.form_encode_hash(JSON.parse(params))):Soup.Message.new(method, url)
 
         switch (auth.type){
             case "Key":
@@ -18,7 +18,7 @@ export async function callApi(session, method, url, auth, params, body) {
                 break;
         }
 
-        if (body.length) {
+        if (body?.length) {
             const bytes = new TextEncoder().encode(body);
             message.set_request_body_from_bytes("application/json", GLib.Bytes.new(bytes));
         }

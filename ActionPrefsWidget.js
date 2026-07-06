@@ -140,11 +140,12 @@ export const ActionPrefsWidget = GObject.registerClass(
             const labelData = {};
             labelData.apis = this._apiModel.getAll();
             labelData.fileMgmt = this._fmModel.getAll();
+            labelData.cmds = this._cmdModel.getAll();
             try {
                 DataIEUtils.exportSchema(JSON.stringify(labelData, null, 2));
                 this._showMessage(btn, "Export successful. Saved in Downloads.")
             } catch (e) {
-                this._showMessage(btn, "Failed to export.")
+                this._showMessage(btn, `Failed to export: ${e.message}`)
             }
         }
 
@@ -176,17 +177,32 @@ export const ActionPrefsWidget = GObject.registerClass(
         }
 
         _importLbls(path) {
-            const labelData = DataIEUtils.importSchema(path);
-            for (const lbl of labelData.apis) {
+            let labelData;
+            try {
+                labelData = DataIEUtils.importSchema(path);
+            } catch (e) {
+                this._showMessage(this, `Failed to import: ${e.message}`);
+                return;
+            }
+            if (!labelData)
+                return;
+
+            for (const lbl of labelData.apis ?? []) {
                 lbl.id = GLib.uuid_string_random();
 
                 this._apiAdd(lbl)
             }
 
-            for (const lbl of labelData.fileMgmt) {
+            for (const lbl of labelData.fileMgmt ?? []) {
                 lbl.id = GLib.uuid_string_random();
 
                 this._fileTransferAdd(lbl)
+            }
+
+            for (const lbl of labelData.cmds ?? []) {
+                lbl.id = GLib.uuid_string_random();
+
+                this._commandAdd(lbl)
             }
         }
 
@@ -486,7 +502,7 @@ export const ActionPrefsWidget = GObject.registerClass(
             this._cmdPreferredTerminal = new Gtk.Entry({ placeholder_text: "System default (e.g. ptyxis, gnome-terminal)" });
             this._cmdDetails.append(this._cmdPreferredTerminal);
 
-            this._useTerminalToggle = new Gtk.CheckButton({ label: "Run in Terminal / Sudo" });
+            this._useTerminalToggle = new Gtk.CheckButton({ label: "Run in Terminal" });
 
             this._cmdDetails.append(this._useTerminalToggle);
 

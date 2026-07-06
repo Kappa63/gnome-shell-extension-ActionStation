@@ -94,16 +94,16 @@ const ActionStation = GObject.registerClass({
         for (let o of this._order) {
             if (o.type === "API") {
                 let a = this._apiModel.get(o.id);
-                // if (a)
-                vbox.add_child(this._buildApiPopup(a));
+                if (a)
+                    vbox.add_child(this._buildApiPopup(a));
             } else if (o.type === "CMD") {
                 let c = this._cmdModel.get(o.id);
-                // if (c)
-                vbox.add_child(this._buildCmdPopup(c));
+                if (c)
+                    vbox.add_child(this._buildCmdPopup(c));
             } else if (o.type === "FILE") {
                 let f = this._fmModel.get(o.id)
-                // if (f)
-                vbox.add_child(this._buildFmPopup(f));
+                if (f)
+                    vbox.add_child(this._buildFmPopup(f));
             }
         }
 
